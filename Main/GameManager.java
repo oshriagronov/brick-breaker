@@ -25,6 +25,7 @@ public class GameManager implements KeyListener{
     private Ball ball;
     private Player player;
     private BrickLines lineOfBricks;
+    private Gameplay gameplay;
     /** The number of lives the player has before the game is over. */
     private int life_points = 3;
     /** The points awarded for breaking a single brick. */
@@ -32,6 +33,8 @@ public class GameManager implements KeyListener{
     private int currentLevel = 1;
     /** Tracks if a key has been pressed to start the game from the menu. */
     private boolean key_pressed;
+    /** Tracks if the game is waiting for a restart key after game over. */
+    private boolean waitingForRestart;
     /**
      * Constructs a GameManager, initializing all game components.
      * It performs a pre-launch check for necessary asset files and exits if any are missing.
@@ -50,6 +53,8 @@ public class GameManager implements KeyListener{
         player = new Player(life_points, score_points);
         lineOfBricks = new BrickLines(currentLevel);
         screen.addKeyListener(this);
+        key_pressed = false;
+        waitingForRestart = false;
     }
 
     /**
@@ -65,6 +70,8 @@ public class GameManager implements KeyListener{
      * Displays the initial menu screen, waiting for player input to start the game.
      */
     public void menu_screen(){
+        key_pressed = false;
+        waitingForRestart = false;
         screen.menuScreen();
     }
 
@@ -74,7 +81,12 @@ public class GameManager implements KeyListener{
      * adding all game objects to the screen, and starting the Gameplay timer.
      */
     public void start(){
+        waitingForRestart = false;
         screen.clearScreen();
+        if(gameplay != null){
+            screen.removeKeyListener(gameplay);
+            gameplay = null;
+        }
         screen.removeKeyListener(this); // Remove this listener to pass control to Gameplay's listener.
         // Render all game objects on the screen.
         screen.addPaddleLabel(Paddle.getIcon(), paddle.getX(), paddle.getY(), Paddle.getWidth(), Paddle.getHeight());
@@ -83,12 +95,16 @@ public class GameManager implements KeyListener{
         screen.addBricksLabels(lineOfBricks);
         screen.addPlayerScore(player.getScore());
         // Initialize and run the core gameplay logic.
-        Gameplay gameplay = new Gameplay(player, screen, sound_effect, ball, paddle, lineOfBricks);
+        gameplay = new Gameplay(player, screen, sound_effect, ball, paddle, lineOfBricks);
         // Set up a listener to handle game-end conditions (win or lose).
         gameplay.setGameEndListener(() -> {
+        screen.removeKeyListener(gameplay);
         if (player.getLifePoints() == 0) {
             screen.clearScreen();
             screen.gameOverScreen();
+            waitingForRestart = true;
+            key_pressed = false;
+            screen.addKeyListener(this);
         } else {
             currentLevel++;
             if(currentLevel <= 4){
@@ -101,10 +117,21 @@ public class GameManager implements KeyListener{
             else{
                 screen.clearScreen();
                 screen.winingScreen();
+                waitingForRestart = true;
+                key_pressed = false;
+                screen.addKeyListener(this);
             }
         }
         });
         gameplay.run();
+    }
+
+    private void resetGameState(){
+        currentLevel = 1;
+        player = new Player(life_points, score_points);
+        paddle = new Paddle(PADDLE_DEFAULT_X, PADDLE_DEFAULT_Y);
+        ball = new Ball(Ball_DEFAULT_X, BALL_DEFAULT_Y);
+        lineOfBricks = new BrickLines(currentLevel);
     }
     /**
      * Invoked when a key has been pressed. Used here to detect the first key press
@@ -113,6 +140,12 @@ public class GameManager implements KeyListener{
      */
     @Override
     public void keyPressed(KeyEvent e) {
+        if(waitingForRestart){
+            waitingForRestart = false;
+            resetGameState();
+            start();
+            return;
+        }
         if(!key_pressed){
             key_pressed = true;
             start();

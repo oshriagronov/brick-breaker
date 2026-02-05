@@ -6,6 +6,7 @@ import GameObjects.BrickLines;
 import Main.Player;
 
 import javax.swing.ImageIcon;
+import javax.swing.SwingConstants;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -201,18 +202,34 @@ public class Screen extends JFrame{
 
     /** Displays the winning screen. */
     public void winingScreen(){
+        int winingLogoWidth = 500;
+        int winingLogoHeight = 435;
         winingLogoLabel = new JLabel(new ImageIcon(WINING_ICON_PATH));
-        winingLogoLabel.setBounds((WINDOW_WIDTH / 2) - 235, 100, 500, 435);
+        winingLogoLabel.setBounds((WINDOW_WIDTH - winingLogoWidth) / 2, 100, winingLogoWidth, winingLogoHeight);
+        JLabel winPrompt = new JLabel("press any key to play again!");
+        winPrompt.setBounds(0, winingLogoLabel.getY() + winingLogoLabel.getHeight() + 15, WINDOW_WIDTH, 50);
+        winPrompt.setHorizontalAlignment(SwingConstants.CENTER);
+        winPrompt.setFont(new Font("Monospaced", Font.BOLD, 28));
+        winPrompt.setForeground(new Color(0, 255, 180));
         backgroundLabel.add(winingLogoLabel);
+        backgroundLabel.add(winPrompt);
         backgroundLabel.revalidate(); 
         backgroundLabel.repaint();
     }
 
     /** Displays the game over screen. */
     public void gameOverScreen(){
+        int gameOverLogoWidth = 800;
+        int gameOverLogoHeight = 800;
         gameOverLogoLabel = new JLabel(new ImageIcon(GAME_OVER_ICON_PATH));
-        gameOverLogoLabel.setBounds((WINDOW_WIDTH / 5), -50, 800, 800);
+        gameOverLogoLabel.setBounds((WINDOW_WIDTH - gameOverLogoWidth) / 2, -170, gameOverLogoWidth, gameOverLogoHeight);
+        JLabel gameOverText = new JLabel("press any key to restart!");
+        gameOverText.setBounds(0, gameOverLogoLabel.getY() + gameOverLogoLabel.getHeight() + 15, WINDOW_WIDTH, 50);
+        gameOverText.setHorizontalAlignment(SwingConstants.CENTER);
+        gameOverText.setFont(new Font("Monospaced", Font.BOLD, 28));
+        gameOverText.setForeground(new Color(0, 255, 180));
         backgroundLabel.add(gameOverLogoLabel);
+        backgroundLabel.add(gameOverText);
         backgroundLabel.revalidate(); 
         backgroundLabel.repaint();
     }
