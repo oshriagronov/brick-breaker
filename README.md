@@ -69,6 +69,33 @@ To get a local copy up and running follow these simple steps.
 
 3. **Run Gamemanager.java file!**
 
+## Executable Package (No IDE Needed)
+
+You can build a runnable package (JAR + assets + launch scripts) and upload the zip to GitHub Releases so players can download it and run the game directly.
+
+### Build the package
+
+**macOS / Linux**
+
+```bash
+./scripts/package.sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\scripts\package.ps1
+```
+
+This creates `dist/BrickBreaker.zip`.
+
+### How players run it
+
+1. Download and unzip `BrickBreaker.zip`.
+2. Run `run.bat` (Windows) or `run.sh` (macOS/Linux), or double-click `BrickBreaker.jar`.
+
+> Note: Java 17+ must be installed for the JAR to run.
+
 
 ## Acknowledgements
 
