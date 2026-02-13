@@ -69,9 +69,24 @@ To get a local copy up and running follow these simple steps.
 
 ## Executable Package (No IDE Needed)
 
-You can build a runnable package (JAR + assets + launch scripts) and upload the zip to GitHub Releases so players can download it and run the game directly.
+If you just want to play, you can download the game directly from the GitHub Releases page.
 
-### Build the package
+### Download from Releases
+
+1. Open the [Releases page](https://github.com/oshriagronov/brick-breaker/releases).
+2. Download `BrickBreaker.zip` from the latest release assets.
+3. Unzip it and run `run.bat` (Windows) or `run.sh` (macOS/Linux).
+
+`BrickBreaker.zip` already includes:
+- `BrickBreaker.jar`
+- The `assets` folder
+- Launch scripts (`run.bat`, `run.sh`)
+
+> Note: Java 17+ must be installed.
+
+### Build the package yourself
+
+If you prefer to build it locally:
 
 **macOS / Linux**
 
