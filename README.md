@@ -20,9 +20,10 @@ This implementation demonstrates a solid understanding of object-oriented princi
 - Score system.
 
 ## Future plans
- - Possible bonuses that appear randomly when bricks are destroyed
- - Adding a break that requires two hits to destroy. 
- - And more!
+
+- Possible bonuses that appear randomly when bricks are destroyed
+- Adding a break that requires two hits to destroy.
+- And more!
 
 ## Technologies Used
 
@@ -36,13 +37,13 @@ This implementation demonstrates a solid understanding of object-oriented princi
 ## Media
 
 > Start menu.
-<img src="./img/menu-screen.jpg" alt="Game menu screen" width="600" height="600">
+> <img src="./img/menu-screen.jpg" alt="Game menu screen" width="600" height="600">
 
 > Gameplay screen.
-<img src="./img/game-screen.jpg" alt="Gameplay screen" width="600" height="600">
+> <img src="./img/game-screen.jpg" alt="Gameplay screen" width="600" height="600">
 
 > "Game over" screen.
-<img src="./img/game-over-screen.jpg" alt="Game over screen" width="600" height="600">
+> <img src="./img/game-over-screen.jpg" alt="Game over screen" width="600" height="600">
 
 ## Getting Started
 
@@ -78,6 +79,7 @@ If you just want to play, you can download the game directly from the GitHub Rel
 3. Unzip it and run `run.bat` (Windows) or `run.sh` (macOS/Linux).
 
 `BrickBreaker.zip` already includes:
+
 - `BrickBreaker.jar`
 - The `assets` folder
 - Launch scripts (`run.bat`, `run.sh`)
@@ -101,14 +103,6 @@ If you prefer to build it locally:
 ```
 
 This creates `dist/BrickBreaker.zip`.
-
-### How players run it
-
-1. Download and unzip `BrickBreaker.zip`.
-2. Run `run.bat` (Windows) or `run.sh` (macOS/Linux), or double-click `BrickBreaker.jar`.
-
-> Note: Java 17+ must be installed for the JAR to run.
-
 
 ## Acknowledgements
 
