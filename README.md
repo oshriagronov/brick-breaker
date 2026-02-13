@@ -36,13 +36,8 @@ This implementation demonstrates a solid understanding of object-oriented princi
 
 ## Media
 
-> Start menu.
 > <img src="./img/menu-screen.jpg" alt="Game menu screen" width="600" height="600">
-
-> Gameplay screen.
 > <img src="./img/game-screen.jpg" alt="Gameplay screen" width="600" height="600">
-
-> "Game over" screen.
 > <img src="./img/game-over-screen.jpg" alt="Game over screen" width="600" height="600">
 
 ## Getting Started
