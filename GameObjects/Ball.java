@@ -14,18 +14,20 @@ public class Ball {
     private static ImageIcon ballIcon;
     private int x;
     private int y;
+    private double preciseX;
+    private double preciseY;
     /**
      * The horizontal velocity of the ball in pixels per timer tick.
      * A larger number means a faster ball.
      */
-    private int defaultXVelocity = 0;
-    private int xVelocity = 0;
+    private double defaultXVelocity = 0;
+    private double xVelocity = 0;
     /**
      * The vertical velocity of the ball in pixels per timer tick.
      * A larger number means a faster ball.
      */
-    private int defaultYVelocity = 10;
-    private int yVelocity = 0;
+    private double defaultYVelocity = 11;
+    private double yVelocity = 0;
 
     /**
      * Constructs a new Ball object at the specified coordinates.
@@ -36,6 +38,8 @@ public class Ball {
         ballIcon = new ImageIcon(ICON_PATH);
         this.x = x;
         this.y = y;
+        this.preciseX = x;
+        this.preciseY = y;
     }
 
     /**
@@ -79,6 +83,14 @@ public class Ball {
         return y;
     }
 
+    public double getPreciseX(){
+        return preciseX;
+    }
+
+    public double getPreciseY(){
+        return preciseY;
+    }
+
     /**
      * Returns the icon for the ball.
      * @return The ImageIcon of the ball.
@@ -99,36 +111,36 @@ public class Ball {
      * Returns the horizontal velocity of the ball.
      * @return The ball's horizontal velocity.
      */
-    public int getBallXVelocity(){
+    public double getBallXVelocity(){
         return xVelocity;
     }
 
-    public int getDefaultBallXVelocity(){
+    public double getDefaultBallXVelocity(){
         return defaultXVelocity;
     }
     /**
      * Sets the horizontal velocity of the ball.
      * @param xVelocity The new horizontal velocity.
      */
-    public void setBallXVelocity(int xVelocity){
+    public void setBallXVelocity(double xVelocity){
         this.xVelocity = xVelocity;
     }
     /**
      * Returns the vertical velocity of the ball.
      * @return The ball's vertical velocity.
      */
-    public int getBallYVelocity(){
+    public double getBallYVelocity(){
         return yVelocity;
     }
 
-    public int getDefaultBallYVelocity(){
+    public double getDefaultBallYVelocity(){
         return defaultYVelocity;
     }
     /**
      * Sets the vertical velocity of the ball.
      * @param yVelocity The new vertical velocity.
      */
-    public void setBallYVelocity(int yVelocity){
+    public void setBallYVelocity(double yVelocity){
         this.yVelocity = yVelocity;
     }
     /**
@@ -140,5 +152,19 @@ public class Ball {
     public void setPosition(int x, int y) {
         this.x = x;
         this.y = y;
+        this.preciseX = x;
+        this.preciseY = y;
+    }
+
+    /**
+     * Sets sub-pixel accurate position and updates the integer render position.
+     * @param x The new precise x-coordinate.
+     * @param y The new precise y-coordinate.
+     */
+    public void setPrecisePosition(double x, double y) {
+        this.preciseX = x;
+        this.preciseY = y;
+        this.x = (int)Math.round(x);
+        this.y = (int)Math.round(y);
     }
 }

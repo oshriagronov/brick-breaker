@@ -23,9 +23,27 @@ public class Gameplay implements KeyListener, ActionListener{
     /** The rightmost limit for the paddle's movement. */
     private final int PADDLE_SCREEN_RIGHT_LIMIT = Screen.WINDOW_WIDTH - Paddle.getWidth();
     /** The y-coordinate at which the ball is considered missed, resulting in a loss of life. */
-    private final int MISS_HEIGHT = Screen.WINDOW_HEIGHT - Ball.getHeight();
+    private static final int BALL_MISS_FORGIVENESS_PX = 16;
+    private final int MISS_HEIGHT = Screen.WINDOW_HEIGHT + BALL_MISS_FORGIVENESS_PX;
     /** determines the delay of the game's timer. A smaller number results in a faster the movement of objects. */
     private static final int TIMER_DELAY_MS = 10;
+    /** Maximum paddle bounce angle from vertical, reached at paddle edges. */
+    private static final double PADDLE_MAX_BOUNCE_ANGLE_DEG = 67.0;
+    /** Minimum angle from vertical for any non-center paddle hit. */
+    private static final double PADDLE_MIN_OFFCENTER_ANGLE_DEG = 8.0;
+    /** Keeps the game responsive if speed ever drops too much. */
+    private static final double MIN_BALL_SPEED = 6.0;
+    /** Any non-center paddle hit should keep at least this horizontal return speed. */
+    private static final double MIN_PADDLE_RETURN_X_VELOCITY = 1.8;
+    /** Prevent top paddle hits from becoming almost horizontal. */
+    private static final double MIN_PADDLE_TOP_Y_VELOCITY = 2.5;
+    /** Minimum horizontal deflection for paddle side collisions. */
+    private static final double MIN_PADDLE_SIDE_X_VELOCITY = 2.0;
+    /** Small separation gap to keep ball and paddle from re-overlapping on side hits. */
+    private static final int PADDLE_ESCAPE_GAP = 2;
+    /** Prevents top-corner wall hits from collapsing into a straight vertical drop. */
+    private static final double MIN_CORNER_X_VELOCITY = 2.0;
+    private static final double EPSILON = 1e-9;
     private GameEndListener gameEndListener;
     private Player player;
     private Screen screen;
@@ -35,7 +53,6 @@ public class Gameplay implements KeyListener, ActionListener{
     private BrickLines lineOfBricks;
     /** The main game timer that triggers an action event at a regular interval to drive the game's state. */
     private Timer timer;
-    private Rectangle ballBounds;
     private Rectangle paddleBounds;
     /** Tracks if the paddle should be moving left. */
     private boolean movingLeft = false;
@@ -61,7 +78,6 @@ public class Gameplay implements KeyListener, ActionListener{
         this.ball = ball;
         this.paddle = paddle;
         this.lineOfBricks = lineOfBricks;
-        ballBounds = new Rectangle();
         paddleBounds = new Rectangle();
     }
     /**
@@ -90,15 +106,16 @@ public class Gameplay implements KeyListener, ActionListener{
         if(!isGameOver()){
             updatePaddlePosition(); // Update paddle position every frame for smooth movement.
             ballReset();
-            // Check if the player missed the ball.
-            if(ball.getY() > MISS_HEIGHT){
+
+            ballMovement();
+
+            // Check miss only after collision resolution, so last-moment paddle saves count.
+            if(isBallMissed()){
                 ball.resetPosition();
                 ballDefaultPosition = true;
                 screen.removeHeartLabel(player.getLifePoints() - 1);
                 player.loseLifePoint();
-            }
-            else {
-                ballMovement();
+                screen.ballLabel.setLocation(ball.getX(), ball.getY());
             }
         }
         else{
@@ -123,67 +140,170 @@ public class Gameplay implements KeyListener, ActionListener{
      * Manages the ball's movement and checks for collisions with the paddle, bricks, and screen boundaries.
      */
     private void ballMovement(){
-        ballBounds.setBounds(ball.getX(), ball.getY(), Ball.getWidth(), Ball.getHeight());
+        double velocityX = ball.getBallXVelocity();
+        double velocityY = ball.getBallYVelocity();
+        int steps = Math.max(1, (int)Math.ceil(Math.max(Math.abs(velocityX), Math.abs(velocityY))));
+        double stepX = velocityX / (double) steps;
+        double stepY = velocityY / (double) steps;
+        double nextX = ball.getPreciseX();
+        double nextY = ball.getPreciseY();
+        boolean playCollisionSound = false;
+        boolean playBrickCollisionSound = false;
         paddleBounds.setBounds(paddle.getX(), paddle.getY(), Paddle.getWidth(), Paddle.getHeight());
 
-        if(paddleCollision(ballBounds, paddleBounds)){
-            soundEffect.playCollisionSoundEffect();
+        for(int i = 0; i < steps; i++){
+            Rectangle previousBallBounds = new Rectangle(ball.getX(), ball.getY(), Ball.getWidth(), Ball.getHeight());
+            nextX += stepX;
+            nextY += stepY;
+            ball.setPrecisePosition(nextX, nextY);
+
+            boolean stepHadCollision = false;
+            if(screenWallCollision()){
+                playCollisionSound = true;
+                stepHadCollision = true;
+            }
+
+            if(paddleCollision(paddleBounds, previousBallBounds)){
+                playCollisionSound = true;
+                stepHadCollision = true;
+            }
+            else if(isBrickCollision(previousBallBounds)){
+                player.addScore();
+                screen.refreshPlayerScore(player.getScore());
+                playBrickCollisionSound = true;
+                stepHadCollision = true;
+            }
+
+            // Keep sub-pixel movement unless collision explicitly corrected position.
+            if(stepHadCollision){
+                nextX = ball.getPreciseX();
+                nextY = ball.getPreciseY();
+            }
+            stepX = ball.getBallXVelocity() / (double) steps;
+            stepY = ball.getBallYVelocity() / (double) steps;
         }
-        else if(isBrickCollision(ballBounds)){
-            player.addScore();
-            screen.refreshPlayerScore(player.getScore());
+
+        // Play at most one collision SFX per frame to avoid audio spam stalls on the EDT.
+        if(playBrickCollisionSound){
             soundEffect.playBrickCollisionSoundEffect();
         }
-        else if((ballBounds.getX() > BALL_SCREEN_COLLISION_X && ball.getBallXVelocity() > 0) || (ballBounds.getX() < 0 && ball.getBallXVelocity() < 0)){
-            ballBounceX();
+        else if(playCollisionSound){
             soundEffect.playCollisionSoundEffect();
         }
-        else if(ballBounds.getY() < 0 && ball.getBallYVelocity() < 0){
-            ballBounceY();
-            soundEffect.playCollisionSoundEffect();
-        }
-        // Update the ball's position based on its velocity.
-        ball.setPosition(ball.getX() + ball.getBallXVelocity(), ball.getY() + ball.getBallYVelocity());
+
         screen.ballLabel.setLocation(ball.getX(), ball.getY());
     }
     /**
-     * Checks for and handles collision between the ball and a generic rectangular object.
-     * @param ballBounds The bounding rectangle of the ball.
-     * @param obj The bounding rectangle of the object to check against.
+     * Checks for and handles collision between the ball and the paddle.
+     * @param paddleBounds The bounding rectangle of the paddle.
      * @return true if a collision occurred, false otherwise.
      */
-    private boolean paddleCollision(Rectangle ballBounds, Rectangle paddleBounds){
-            if(ballBounds.intersects(paddleBounds) && ball.getBallYVelocity() > 0){
-                // Determine bounce direction based on the intersection dimensions.
-                int paddleCenter = paddle.getX() + Paddle.getWidth() / 2;
-                int ballCenter = ball.getX() + Ball.getWidth() / 2;
-                int distanceFromCenter = ballCenter - paddleCenter;
-                double hitRatio = (double) distanceFromCenter / (Paddle.getWidth() / 2);
-                int ball_x_velocity_max = 10;
-                ball.setBallXVelocity((int) (ball_x_velocity_max * hitRatio));
-                ballBounceY();
-                return true;
+    private boolean paddleCollision(Rectangle paddleBounds, Rectangle previousBallBounds){
+            if(!isCircleIntersectsRect(paddleBounds) || ball.getBallYVelocity() <= 0){
+                return false;
             }
-            return false;
+
+            Rectangle currentBallBounds = new Rectangle(ball.getX(), ball.getY(), Ball.getWidth(), Ball.getHeight());
+            boolean crossedPaddleTop = previousBallBounds.y + previousBallBounds.height <= paddleBounds.y
+                    && currentBallBounds.y + currentBallBounds.height >= paddleBounds.y;
+            boolean edgeTopContact = currentBallBounds.getCenterY() <= paddleBounds.getCenterY();
+
+            if(crossedPaddleTop || edgeTopContact){
+                ball.setPrecisePosition(ball.getPreciseX(), paddle.getY() - Ball.getHeight());
+                return applyPaddleBounceByHitPosition();
+            }
+
+            // Side contact fallback (for example, paddle moved into the ball):
+            // force an escape path so a moving paddle cannot trap the ball.
+            double ballCenterX = currentBallBounds.getCenterX();
+            double paddleCenterX = paddleBounds.getCenterX();
+            boolean hitLeftSide = ballCenterX < paddleCenterX;
+            return applyPaddleSideBounce(hitLeftSide);
+    }
+
+    private boolean isBallMissed(){
+            paddleBounds.setBounds(paddle.getX(), paddle.getY(), Paddle.getWidth(), Paddle.getHeight());
+            return ball.getPreciseY() > MISS_HEIGHT && !isCircleIntersectsRect(paddleBounds);
+    }
+
+    private boolean applyPaddleBounceByHitPosition(){
+            double ballCenterX = ball.getX() + (Ball.getWidth() / 2.0);
+            double paddleCenterX = paddle.getX() + (Paddle.getWidth() / 2.0);
+            double centerDelta = ballCenterX - paddleCenterX;
+            double hitRatio = clamp(centerDelta / (Paddle.getWidth() / 2.0), -1.0, 1.0);
+
+            double currentSpeed = Math.hypot(ball.getBallXVelocity(), ball.getBallYVelocity());
+            double speed = Math.max(currentSpeed, MIN_BALL_SPEED);
+            double nextXVelocity;
+            double nextYVelocity;
+
+            // Only exact center (sub-pixel) returns straight.
+            if(Math.abs(centerDelta) < EPSILON){
+                nextXVelocity = 0.0;
+                nextYVelocity = -speed;
+            }
+            else{
+                double absHit = Math.abs(hitRatio);
+                double bounceAngleDeg = PADDLE_MIN_OFFCENTER_ANGLE_DEG
+                        + (PADDLE_MAX_BOUNCE_ANGLE_DEG - PADDLE_MIN_OFFCENTER_ANGLE_DEG) * absHit;
+                double bounceAngleRad = Math.toRadians(bounceAngleDeg);
+                double xMagnitude = Math.max(MIN_PADDLE_RETURN_X_VELOCITY, Math.sin(bounceAngleRad) * speed);
+                double yMagnitude = Math.cos(bounceAngleRad) * speed;
+                if(yMagnitude < MIN_PADDLE_TOP_Y_VELOCITY){
+                    yMagnitude = Math.min(speed, MIN_PADDLE_TOP_Y_VELOCITY);
+                    xMagnitude = Math.sqrt(Math.max(EPSILON, (speed * speed) - (yMagnitude * yMagnitude)));
+                }
+                nextXVelocity = (hitRatio < 0) ? -xMagnitude : xMagnitude;
+                nextYVelocity = -Math.abs(yMagnitude);
+            }
+            ball.setBallXVelocity(nextXVelocity);
+            ball.setBallYVelocity(nextYVelocity);
+            return true;
+    }
+
+    private boolean applyPaddleSideBounce(boolean hitLeftSide){
+            double sideDirection = hitLeftSide ? -1.0 : 1.0;
+            double reversedX = -ball.getBallXVelocity();
+            double xMagnitude = Math.max(Math.abs(reversedX), MIN_PADDLE_SIDE_X_VELOCITY + paddle.getSpeed() * 0.35);
+            double nextXVelocity = sideDirection * xMagnitude;
+            double nextYVelocity = Math.max(Math.abs(ball.getBallYVelocity()), MIN_BALL_SPEED * 0.75);
+
+            int escapedX = hitLeftSide
+                    ? paddle.getX() - Ball.getWidth() - PADDLE_ESCAPE_GAP
+                    : paddle.getX() + Paddle.getWidth() + PADDLE_ESCAPE_GAP;
+            int escapedY = ball.getY();
+            int paddleBottom = paddle.getY() + Paddle.getHeight();
+            if(escapedY < paddleBottom + PADDLE_ESCAPE_GAP){
+                escapedY = paddleBottom + PADDLE_ESCAPE_GAP;
+            }
+            ball.setPosition(escapedX, escapedY);
+            ball.setBallXVelocity(nextXVelocity);
+            ball.setBallYVelocity(nextYVelocity);
+            return true;
     }
     /**
      * Checks if the ball has collided with any of the bricks. If a collision occurs,
      * the brick is removed from the game.
-     * @param ballBounds The bounding rectangle of the ball.
+     * @param previousBallBounds The ball rectangle before the current sub-step movement.
      * @return true if a collision with a brick occurred, false otherwise.
      */
-    private boolean isBrickCollision(Rectangle ballBounds){
+    private boolean isBrickCollision(Rectangle previousBallBounds){
         int numOfLines = lineOfBricks.getNumOfLines();
+        Rectangle currentBallBounds = new Rectangle(ball.getX(), ball.getY(), Ball.getWidth(), Ball.getHeight());
+
         for(int i = 0; i < numOfLines; i++){
             int numOfBricks = lineOfBricks.getLineByIndex(i).getNumOfBricks();
             for(int j = 0; j < numOfBricks; j++){
                 Rectangle brick = lineOfBricks.getLineByIndex(i).getBrickByIndex(j).getRectangleBrick();
-                if(ballBounds.intersects(brick)){
-                    Rectangle intersection = ballBounds.intersection(brick);
-                    if(intersection.width < intersection.height)
+                if(isCircleIntersectsRect(brick)){
+                    if(shouldBounceX(previousBallBounds, currentBallBounds, brick)){
+                        placeBallOutsideBrickOnX(previousBallBounds, brick);
                         ballBounceX();
-                    else
+                    }
+                    else{
+                        placeBallOutsideBrickOnY(previousBallBounds, brick);
                         ballBounceY();
+                    }
                     screen.brickDestroy(i, j);
                     lineOfBricks.removeBrickFromLineByIndex(i,j);
                     return true;
@@ -191,6 +311,158 @@ public class Gameplay implements KeyListener, ActionListener{
             }
         }
         return false;
+    }
+
+    /** Checks and resolves collision with the left/right/top screen bounds. */
+    private boolean screenWallCollision(){
+        boolean collided = false;
+        boolean hitLeftWall = false;
+        boolean hitRightWall = false;
+        boolean hitTopWall = false;
+        int ballX = ball.getX();
+        int ballY = ball.getY();
+        boolean touchingLeftWall = ballX <= 0;
+        boolean touchingRightWall = ballX >= BALL_SCREEN_COLLISION_X;
+        boolean touchingTopWall = ballY <= 0;
+
+        // Only resolve when entering/outside the wall, not while already moving away from it.
+        if(ballX < 0 || (touchingLeftWall && ball.getBallXVelocity() < 0)){
+            ball.setPrecisePosition(0, ball.getPreciseY());
+            if(ball.getBallXVelocity() < 0){
+                ballBounceX();
+            }
+            hitLeftWall = true;
+            collided = true;
+        }
+        else if(ballX > BALL_SCREEN_COLLISION_X || (touchingRightWall && ball.getBallXVelocity() > 0)){
+            ball.setPrecisePosition(BALL_SCREEN_COLLISION_X, ball.getPreciseY());
+            if(ball.getBallXVelocity() > 0){
+                ballBounceX();
+            }
+            hitRightWall = true;
+            collided = true;
+        }
+
+        if(ballY < 0 || (touchingTopWall && ball.getBallYVelocity() < 0)){
+            ball.setPrecisePosition(ball.getPreciseX(), 0);
+            if(ball.getBallYVelocity() < 0){
+                ballBounceY();
+            }
+            hitTopWall = true;
+            collided = true;
+        }
+
+        // Corner guard: top-left/top-right hits should not become a straight vertical fall.
+        if(hitTopWall && (hitLeftWall || hitRightWall) && Math.abs(ball.getBallXVelocity()) < MIN_CORNER_X_VELOCITY){
+            ball.setBallXVelocity(hitRightWall ? -MIN_CORNER_X_VELOCITY : MIN_CORNER_X_VELOCITY);
+        }
+
+        return collided;
+    }
+
+    /** Circle-vs-rectangle check for the ball against a target rectangle. */
+    private boolean isCircleIntersectsRect(Rectangle rect){
+        double radius = Ball.getWidth() / 2.0;
+        double centerX = ball.getX() + radius;
+        double centerY = ball.getY() + (Ball.getHeight() / 2.0);
+        double closestX = clamp(centerX, rect.getX(), rect.getX() + rect.getWidth());
+        double closestY = clamp(centerY, rect.getY(), rect.getY() + rect.getHeight());
+        double deltaX = centerX - closestX;
+        double deltaY = centerY - closestY;
+
+        return (deltaX * deltaX) + (deltaY * deltaY) <= radius * radius;
+    }
+
+    private boolean shouldBounceX(Rectangle previousBallBounds, Rectangle currentBallBounds, Rectangle brick){
+        double centerX = currentBallBounds.getCenterX();
+        double centerY = currentBallBounds.getCenterY();
+        double closestX = clamp(centerX, brick.getX(), brick.getX() + brick.getWidth());
+        double closestY = clamp(centerY, brick.getY(), brick.getY() + brick.getHeight());
+        double deltaX = centerX - closestX;
+        double deltaY = centerY - closestY;
+
+        // If contact normal clearly points left/right, bounce on X.
+        if(Math.abs(deltaX) - Math.abs(deltaY) > EPSILON){
+            return true;
+        }
+        if(Math.abs(deltaY) - Math.abs(deltaX) > EPSILON){
+            return false;
+        }
+
+        // Resolve ambiguous corner/overlap cases using swept entry.
+        boolean crossedVerticalFace = (previousBallBounds.x + previousBallBounds.width <= brick.x
+                && currentBallBounds.x + currentBallBounds.width >= brick.x)
+                || (previousBallBounds.x >= brick.x + brick.width
+                && currentBallBounds.x <= brick.x + brick.width);
+        boolean crossedHorizontalFace = (previousBallBounds.y + previousBallBounds.height <= brick.y
+                && currentBallBounds.y + currentBallBounds.height >= brick.y)
+                || (previousBallBounds.y >= brick.y + brick.height
+                && currentBallBounds.y <= brick.y + brick.height);
+
+        if(crossedVerticalFace && !crossedHorizontalFace){
+            return true;
+        }
+        if(crossedHorizontalFace && !crossedVerticalFace){
+            return false;
+        }
+
+        // Final fallback for exact corner equality.
+        if(Math.abs(ball.getBallXVelocity()) < EPSILON && Math.abs(ball.getBallYVelocity()) < EPSILON){
+            return false;
+        }
+        return Math.abs(ball.getBallXVelocity()) >= Math.abs(ball.getBallYVelocity());
+    }
+
+    private void placeBallOutsideBrickOnX(Rectangle previousBallBounds, Rectangle brick){
+        if(ball.getBallXVelocity() > EPSILON){
+            ball.setPosition(brick.x - Ball.getWidth(), ball.getY());
+        }
+        else if(ball.getBallXVelocity() < -EPSILON){
+            ball.setPosition(brick.x + brick.width, ball.getY());
+        }
+        else if(previousBallBounds.x + previousBallBounds.width <= brick.x){
+            ball.setPosition(brick.x - Ball.getWidth(), ball.getY());
+        }
+        else if(previousBallBounds.x >= brick.x + brick.width){
+            ball.setPosition(brick.x + brick.width, ball.getY());
+        }
+        else{
+            int ballCenterX = ball.getX() + (Ball.getWidth() / 2);
+            if(ballCenterX <= brick.getCenterX()){
+                ball.setPosition(brick.x - Ball.getWidth(), ball.getY());
+            }
+            else{
+                ball.setPosition(brick.x + brick.width, ball.getY());
+            }
+        }
+    }
+
+    private void placeBallOutsideBrickOnY(Rectangle previousBallBounds, Rectangle brick){
+        if(ball.getBallYVelocity() > EPSILON){
+            ball.setPosition(ball.getX(), brick.y - Ball.getHeight());
+        }
+        else if(ball.getBallYVelocity() < -EPSILON){
+            ball.setPosition(ball.getX(), brick.y + brick.height);
+        }
+        else if(previousBallBounds.y + previousBallBounds.height <= brick.y){
+            ball.setPosition(ball.getX(), brick.y - Ball.getHeight());
+        }
+        else if(previousBallBounds.y >= brick.y + brick.height){
+            ball.setPosition(ball.getX(), brick.y + brick.height);
+        }
+        else{
+            int ballCenterY = ball.getY() + (Ball.getHeight() / 2);
+            if(ballCenterY <= brick.getCenterY()){
+                ball.setPosition(ball.getX(), brick.y - Ball.getHeight());
+            }
+            else{
+                ball.setPosition(ball.getX(), brick.y + brick.height);
+            }
+        }
+    }
+
+    private double clamp(double value, double min, double max){
+        return Math.max(min, Math.min(max, value));
     }
     /**
      * Determines if the game has ended, either by destroying all bricks (win)
@@ -213,11 +485,13 @@ public class Gameplay implements KeyListener, ActionListener{
     private void updatePaddlePosition() {
         int paddlePositionX = paddle.getX();
         if (movingLeft && paddlePositionX > PADDLE_SCREEN_LEFT_LIMIT) {
-            paddle.setX(paddlePositionX - paddle.getSpeed());
+            paddlePositionX -= paddle.getSpeed();
         }
         if (movingRight && paddlePositionX < PADDLE_SCREEN_RIGHT_LIMIT) {
-            paddle.setX(paddlePositionX + paddle.getSpeed());
+            paddlePositionX += paddle.getSpeed();
         }
+        paddlePositionX = (int)Math.round(clamp(paddlePositionX, PADDLE_SCREEN_LEFT_LIMIT, PADDLE_SCREEN_RIGHT_LIMIT));
+        paddle.setX(paddlePositionX);
         screen.paddleLabel.setLocation(paddle.getX(), paddle.getY());
     }
     private void ballReset(){

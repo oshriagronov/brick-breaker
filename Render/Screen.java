@@ -135,14 +135,14 @@ public class Screen extends JFrame{
      * @param brickIndex The index of the brick to remove.
      */
     public void brickDestroy(int brickLineIndex, int brickIndex){
-        backgroundLabel.remove(bricksLines.get(brickLineIndex).get(brickIndex));
+        JLabel brickLabel = bricksLines.get(brickLineIndex).get(brickIndex);
+        backgroundLabel.remove(brickLabel);
         bricksLines.get(brickLineIndex).remove(brickIndex);
         if(bricksLines.get(brickLineIndex).isEmpty()){
             bricksLines.remove(brickLineIndex);
         }
-        // Revalidate and repaint the screen (to ensure the changes are applied
-        backgroundLabel.revalidate();
-        backgroundLabel.repaint();
+        // This container uses null layout, so repainting the changed area is enough.
+        backgroundLabel.repaint(brickLabel.getBounds());
     }
 
     /**
@@ -165,8 +165,7 @@ public class Screen extends JFrame{
      */
     public void refreshPlayerScore(int score){
         playerScore.setText("score: " + score);
-        backgroundLabel.revalidate(); 
-        backgroundLabel.repaint();
+        backgroundLabel.repaint(playerScore.getBounds());
     }
 
     /**

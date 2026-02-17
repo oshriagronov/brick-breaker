@@ -18,6 +18,10 @@ public class SoundEffect {
     private String BRICK_COLLISION_SOUND_EFFECT_FILE_PATH = AssetPaths.BRICK_COLLISION_SOUND_EFFECT_FILE_PATH;
     private Clip collisionSoundEffect;
     private Clip brickCollisionSoundEffect;
+    private static final long COLLISION_SOUND_COOLDOWN_NS = 25_000_000L;
+    private static final long BRICK_SOUND_COOLDOWN_NS = 20_000_000L;
+    private long lastCollisionSoundTimeNs = 0L;
+    private long lastBrickSoundTimeNs = 0L;
 
     /**
      * Constructs a SoundEffect object and loads all the necessary audio files into memory.
@@ -55,6 +59,11 @@ public class SoundEffect {
      * If the clip is already playing, it is stopped and reset before playing again.
      */
     public void playCollisionSoundEffect(){
+        long now = System.nanoTime();
+        if(now - lastCollisionSoundTimeNs < COLLISION_SOUND_COOLDOWN_NS)
+            return;
+        lastCollisionSoundTimeNs = now;
+
         if(collisionSoundEffect.isRunning())
             collisionSoundEffect.stop();
         collisionSoundEffect.setFramePosition(0);
@@ -66,9 +75,14 @@ public class SoundEffect {
      * If the clip is already playing, it is stopped and reset before playing again.
      */
     public void playBrickCollisionSoundEffect(){
+        long now = System.nanoTime();
+        if(now - lastBrickSoundTimeNs < BRICK_SOUND_COOLDOWN_NS)
+            return;
+        lastBrickSoundTimeNs = now;
+
         if(brickCollisionSoundEffect.isRunning())
             brickCollisionSoundEffect.stop();
-        brickCollisionSoundEffect.setMicrosecondPosition(0);
+        brickCollisionSoundEffect.setFramePosition(0);
         brickCollisionSoundEffect.start();
     }
 }
