@@ -13,11 +13,11 @@ import Render.AssetPaths;
  * It pre-loads audio clips for collisions to ensure they can be played without delay.
  */
 public class SoundEffect {
-    // Suggestion: These file paths could be made `private static final` as they are constants.
-    private String COLLISION_SOUND_EFFECT_FILE_PATH = AssetPaths.COLLISION_SOUND_EFFECT_FILE_PATH;
-    private String BRICK_COLLISION_SOUND_EFFECT_FILE_PATH = AssetPaths.BRICK_COLLISION_SOUND_EFFECT_FILE_PATH;
+    private static final String COLLISION_SOUND_EFFECT_FILE_PATH = AssetPaths.COLLISION_SOUND_EFFECT_FILE_PATH;
+    private static final String BRICK_COLLISION_SOUND_EFFECT_FILE_PATH = AssetPaths.BRICK_COLLISION_SOUND_EFFECT_FILE_PATH;
     private Clip collisionSoundEffect;
     private Clip brickCollisionSoundEffect;
+    // Short cooldowns avoid audio restart spam when several collisions happen in one frame.
     private static final long COLLISION_SOUND_COOLDOWN_NS = 25_000_000L;
     private static final long BRICK_SOUND_COOLDOWN_NS = 20_000_000L;
     private long lastCollisionSoundTimeNs = 0L;

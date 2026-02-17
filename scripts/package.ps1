@@ -28,8 +28,6 @@ Main-Class: Main.GameManager
 & jar --create --file (Join-Path $distDir "BrickBreaker.jar") --manifest $manifestFile -C (Join-Path $buildDir "classes") .
 
 Copy-Item -Path (Join-Path $rootDir "assets") -Destination (Join-Path $distDir "assets") -Recurse
-if (Test-Path (Join-Path $distDir "assets\\Deprecated")) { Remove-Item (Join-Path $distDir "assets\\Deprecated") -Recurse -Force }
-if (Test-Path (Join-Path $distDir "assets\\Future-updates")) { Remove-Item (Join-Path $distDir "assets\\Future-updates") -Recurse -Force }
 Get-ChildItem -Path (Join-Path $distDir "assets") -Recurse -Force |
   Where-Object { $_.Name -eq ".DS_Store" -or $_.Name -eq "desktop.ini" } |
   Remove-Item -Force

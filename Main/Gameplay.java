@@ -22,8 +22,9 @@ public class Gameplay implements KeyListener, ActionListener{
     private final int PADDLE_SCREEN_LEFT_LIMIT = 0;
     /** The rightmost limit for the paddle's movement. */
     private final int PADDLE_SCREEN_RIGHT_LIMIT = Screen.WINDOW_WIDTH - Paddle.getWidth();
-    /** The y-coordinate at which the ball is considered missed, resulting in a loss of life. */
+    /** Extra pixels below the screen before counting a miss, to allow late edge saves. */
     private static final int BALL_MISS_FORGIVENESS_PX = 16;
+    /** Miss threshold is below the visible game area to feel less punishing. */
     private final int MISS_HEIGHT = Screen.WINDOW_HEIGHT + BALL_MISS_FORGIVENESS_PX;
     /** determines the delay of the game's timer. A smaller number results in a faster the movement of objects. */
     private static final int TIMER_DELAY_MS = 10;
@@ -43,6 +44,7 @@ public class Gameplay implements KeyListener, ActionListener{
     private static final int PADDLE_ESCAPE_GAP = 2;
     /** Prevents top-corner wall hits from collapsing into a straight vertical drop. */
     private static final double MIN_CORNER_X_VELOCITY = 2.0;
+    /** Tiny tolerance used when comparing floating-point values. */
     private static final double EPSILON = 1e-9;
     private GameEndListener gameEndListener;
     private Player player;
@@ -107,6 +109,7 @@ public class Gameplay implements KeyListener, ActionListener{
             updatePaddlePosition(); // Update paddle position every frame for smooth movement.
             ballReset();
 
+            // Move + resolve collisions before checking miss so last-moment saves are valid.
             ballMovement();
 
             // Check miss only after collision resolution, so last-moment paddle saves count.
@@ -137,7 +140,8 @@ public class Gameplay implements KeyListener, ActionListener{
     }
 
     /**
-     * Manages the ball's movement and checks for collisions with the paddle, bricks, and screen boundaries.
+     * Moves the ball using sub-steps (swept movement) so fast motion doesn't skip collisions.
+     * Each sub-step applies wall/paddle/brick resolution before continuing.
      */
     private void ballMovement(){
         double velocityX = ball.getBallXVelocity();
@@ -196,6 +200,7 @@ public class Gameplay implements KeyListener, ActionListener{
     /**
      * Checks for and handles collision between the ball and the paddle.
      * @param paddleBounds The bounding rectangle of the paddle.
+     * @param previousBallBounds The ball rectangle before this movement sub-step.
      * @return true if a collision occurred, false otherwise.
      */
     private boolean paddleCollision(Rectangle paddleBounds, Rectangle previousBallBounds){
@@ -208,6 +213,7 @@ public class Gameplay implements KeyListener, ActionListener{
                     && currentBallBounds.y + currentBallBounds.height >= paddleBounds.y;
             boolean edgeTopContact = currentBallBounds.getCenterY() <= paddleBounds.getCenterY();
 
+            // Treat edge-top contacts as top hits to favor player saves at the paddle edge.
             if(crossedPaddleTop || edgeTopContact){
                 ball.setPrecisePosition(ball.getPreciseX(), paddle.getY() - Ball.getHeight());
                 return applyPaddleBounceByHitPosition();
@@ -221,11 +227,16 @@ public class Gameplay implements KeyListener, ActionListener{
             return applyPaddleSideBounce(hitLeftSide);
     }
 
+    /** Counts a miss only when the ball is below the threshold and no longer touching the paddle. */
     private boolean isBallMissed(){
             paddleBounds.setBounds(paddle.getX(), paddle.getY(), Paddle.getWidth(), Paddle.getHeight());
             return ball.getPreciseY() > MISS_HEIGHT && !isCircleIntersectsRect(paddleBounds);
     }
 
+    /**
+     * Top-paddle bounce model:
+     * center hit -> vertical return, farther from center -> larger return angle.
+     */
     private boolean applyPaddleBounceByHitPosition(){
             double ballCenterX = ball.getX() + (Ball.getWidth() / 2.0);
             double paddleCenterX = paddle.getX() + (Paddle.getWidth() / 2.0);
@@ -373,6 +384,10 @@ public class Gameplay implements KeyListener, ActionListener{
         return (deltaX * deltaX) + (deltaY * deltaY) <= radius * radius;
     }
 
+    /**
+     * Chooses bounce axis for a brick hit.
+     * Prefers collision normal, then swept-entry direction for corner ambiguity.
+     */
     private boolean shouldBounceX(Rectangle previousBallBounds, Rectangle currentBallBounds, Rectangle brick){
         double centerX = currentBallBounds.getCenterX();
         double centerY = currentBallBounds.getCenterY();
@@ -413,6 +428,7 @@ public class Gameplay implements KeyListener, ActionListener{
         return Math.abs(ball.getBallXVelocity()) >= Math.abs(ball.getBallYVelocity());
     }
 
+    /** Pushes the ball outside a brick on the X axis to prevent immediate re-collision. */
     private void placeBallOutsideBrickOnX(Rectangle previousBallBounds, Rectangle brick){
         if(ball.getBallXVelocity() > EPSILON){
             ball.setPosition(brick.x - Ball.getWidth(), ball.getY());
@@ -437,6 +453,7 @@ public class Gameplay implements KeyListener, ActionListener{
         }
     }
 
+    /** Pushes the ball outside a brick on the Y axis to prevent immediate re-collision. */
     private void placeBallOutsideBrickOnY(Rectangle previousBallBounds, Rectangle brick){
         if(ball.getBallYVelocity() > EPSILON){
             ball.setPosition(ball.getX(), brick.y - Ball.getHeight());
@@ -461,6 +478,7 @@ public class Gameplay implements KeyListener, ActionListener{
         }
     }
 
+    /** Utility clamp used by angle and collision calculations. */
     private double clamp(double value, double min, double max){
         return Math.max(min, Math.min(max, value));
     }
@@ -494,6 +512,7 @@ public class Gameplay implements KeyListener, ActionListener{
         paddle.setX(paddlePositionX);
         screen.paddleLabel.setLocation(paddle.getX(), paddle.getY());
     }
+    /** Launches the ball from its waiting state when space is pressed. */
     private void ballReset(){
         if(ballDefaultPosition && spacePressed){
             ball.setBallXVelocity(ball.getDefaultBallXVelocity());

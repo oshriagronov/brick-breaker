@@ -14,6 +14,7 @@ public class Ball {
     private static ImageIcon ballIcon;
     private int x;
     private int y;
+    /** Sub-pixel position used by collision/movement to avoid rounding artifacts. */
     private double preciseX;
     private double preciseY;
     /**
@@ -83,10 +84,12 @@ public class Ball {
         return y;
     }
 
+    /** Returns the sub-pixel x-coordinate used by the movement simulation. */
     public double getPreciseX(){
         return preciseX;
     }
 
+    /** Returns the sub-pixel y-coordinate used by the movement simulation. */
     public double getPreciseY(){
         return preciseY;
     }
@@ -152,6 +155,7 @@ public class Ball {
     public void setPosition(int x, int y) {
         this.x = x;
         this.y = y;
+        // Keep precise and integer positions in sync when hard-correcting position.
         this.preciseX = x;
         this.preciseY = y;
     }

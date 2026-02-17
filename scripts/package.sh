@@ -28,7 +28,6 @@ jar --create --file "$DIST_DIR/BrickBreaker.jar" --manifest "$MANIFEST_FILE" -C 
 
 # Copy runtime assets next to the JAR
 cp -R "$ROOT_DIR/assets" "$DIST_DIR/assets"
-rm -rf "$DIST_DIR/assets/Deprecated" "$DIST_DIR/assets/Future-updates"
 find "$DIST_DIR/assets" \( -name ".DS_Store" -o -name "desktop.ini" \) -delete
 
 # Create launch scripts
